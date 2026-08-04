@@ -1,11 +1,11 @@
 # zoom-mcp
 
-MCP server for **Zoom**'s Users Admin REST API. Full coverage of the
-official `https://developers.zoom.us/docs/api/users/` spec — Users,
-Groups, Contact Groups, and Divisions (71 tools, all methods including
-writes) — driven by PRD-14714's "Account creation / validation"
-requirement (onboarding step: account creation and group-driven
-provisioning, plus validation).
+MCP server for **Zoom**'s Users Admin REST API. Wraps the official
+`https://developers.zoom.us/docs/api/users/` spec — Users, Groups, Contact
+Groups, and Divisions — driven by PRD-14714's "Account creation /
+validation" requirement (onboarding step: account creation and
+group-driven provisioning, plus validation). **22 tools**, trimmed down
+from an original 71-tool full-API build (2026-08-04) — see Scope below.
 
 > Naming note: Zoom also publishes its own first-party MCP servers
 > (`developers.zoom.us/docs/mcp`) — Zoom, Whiteboard, Chat, Docs, Tasks,
@@ -26,13 +26,49 @@ provisioning, plus validation).
 - Entry points: `POST /mcp` (MCP protocol) and `GET /health` (health
   check).
 - Default port: `8080` (configurable via `MCP_HTTP_PORT`).
-- All 71 tools were generated mechanically from Zoom's own published
+- All tools were generated mechanically from Zoom's own published
   OpenAPI 3.0 spec (`https://developers.zoom.us/api-hub/users/methods/endpoints.json`,
   the machine-readable source behind the public docs page) — path/query
   parameters and request-body fields are flattened into named function
   arguments; nested object/array-of-object fields (e.g. `user_info`,
   `members`, `feature`) are passed through as a raw `dict`/`list[dict]`
   matching the vendor's own schema shape.
+
+## Scope
+
+**22 tools**, trimmed down from an original 71-tool full-API build
+(2026-08-04). MSPbots has no existing "Zoom" integration configured
+(confirmed via `web/int/sys/integration/list`), so — matching the approach
+used for `duo-mcp` elsewhere in this program — "actual usage" was taken
+from the original PRD-14714 task's own stated requirement instead:
+**account creation and group-driven provisioning, plus validation**. That
+maps to:
+
+- **`users` (8 of 35 original)**: `zoom_create_users`,
+  `zoom_check_a_user_email` (email-availability validation),
+  `zoom_get_a_user`, `zoom_list_users`, `zoom_update_a_user`,
+  `zoom_delete_a_user`, `zoom_update_user_status` (activate/deactivate —
+  part of provisioning/validation), `zoom_get_user_permissions`
+- **`groups` (8 of 21 original)**: `zoom_list_groups`,
+  `zoom_create_a_group`, `zoom_get_a_group`, `zoom_update_a_group`,
+  `zoom_delete_a_group`, plus membership management (the "group-driven"
+  half of provisioning) — `zoom_list_group_members`,
+  `zoom_add_group_members`, `zoom_delete_a_group_member`
+- **`contact_groups` (4 of 8 original)**: `zoom_list_contact_groups`,
+  `zoom_create_a_contact_group`, `zoom_get_a_contact_group`,
+  `zoom_add_contact_group_members`
+- **`divisions` (2 of 7 original)**: `zoom_list_divisions`,
+  `zoom_get_a_division`
+
+Everything else (assistants, collaboration devices, meeting summary
+templates, password/profile-picture/presence/scheduler/settings/virtual-
+background management on `users`; admins/channels/locked-settings/webinar-
+registration/virtual-background on `groups`; remove-members/full CRUD
+depth on `contact_groups` and `divisions` — ~49 tools) was removed as
+unrelated to account creation/provisioning/validation. If a removed
+operation is needed later, the vendor's OpenAPI spec (linked above) still
+documents it and it can be re-added the same way the kept tools were
+generated.
 
 ## Authentication
 
@@ -109,81 +145,30 @@ exists once for Groups and once for Users — is disambiguated with a
 vendor's own nested object shape as-is; see the API Reference link
 below for the exact sub-field names of each.
 
-| Category | Tool | 功能 | 方法+路径 | 参数 |
+| Category | Tool | Description | Method + Path | Params |
 |---|---|---|---|---|
-| Contact Groups | `zoom_list_contact_groups` | List contact groups | GET /contacts/groups | page_size(可选), next_page_token(可选) |
-| Contact Groups | `zoom_create_a_contact_group` | Create a contact group | POST /contacts/groups | group_name(可选), group_privacy(可选), description(可选), group_members(可选) |
-| Contact Groups | `zoom_get_a_contact_group` | Get a contact group | GET /contacts/groups/{groupId} | group_id(必填) |
-| Contact Groups | `zoom_delete_a_contact_group` | Delete a contact group | DELETE /contacts/groups/{groupId} | group_id(必填) |
-| Contact Groups | `zoom_update_a_contact_group` | Update a contact group | PATCH /contacts/groups/{groupId} | group_id(必填), name(可选), privacy(可选), description(可选) |
-| Contact Groups | `zoom_list_contact_group_members` | List contact group members | GET /contacts/groups/{groupId}/members | group_id(必填), page_size(可选), next_page_token(可选) |
-| Contact Groups | `zoom_add_contact_group_members` | Add contact group members | POST /contacts/groups/{groupId}/members | group_id(必填), group_members(可选) |
-| Contact Groups | `zoom_remove_members_in_a_contact_group` | Remove members in a contact group | DELETE /contacts/groups/{groupId}/members | group_id(必填), member_ids(必填) |
-| Divisions | `zoom_list_divisions` | List divisions | GET /divisions | next_page_token(可选), page_size(可选) |
-| Divisions | `zoom_create_a_division` | Create a division | POST /divisions | division_name(必填), division_description(可选) |
-| Divisions | `zoom_get_a_division` | Get a division | GET /divisions/{divisionId} | division_id(必填) |
-| Divisions | `zoom_delete_a_division` | Delete a division | DELETE /divisions/{divisionId} | division_id(必填) |
-| Divisions | `zoom_update_a_division` | Update a division | PATCH /divisions/{divisionId} | division_id(必填), division_name(可选), division_description(可选) |
-| Divisions | `zoom_list_division_members` | List division members | GET /divisions/{divisionId}/users | division_id(必填), next_page_token(可选), page_size(可选) |
-| Divisions | `zoom_assign_a_division` | Assign a division | POST /divisions/{divisionId}/users | division_id(必填), users(可选) |
-| Groups | `zoom_list_groups` | List groups | GET /groups | page_size(可选), next_page_token(可选) |
-| Groups | `zoom_create_a_group` | Create a group | POST /groups | name(可选) |
-| Groups | `zoom_get_a_group` | Get a group | GET /groups/{groupId} | group_id(必填) |
-| Groups | `zoom_delete_a_group` | Delete a group | DELETE /groups/{groupId} | group_id(必填) |
-| Groups | `zoom_update_a_group` | Update a group | PATCH /groups/{groupId} | group_id(必填), name(可选) |
-| Groups | `zoom_list_group_admins` | List group admins | GET /groups/{groupId}/admins | group_id(必填), page_size(可选), next_page_token(可选) |
-| Groups | `zoom_add_group_admins` | Add group admins | POST /groups/{groupId}/admins | group_id(必填), admins(可选) |
-| Groups | `zoom_delete_a_group_admin` | Delete a group admin | DELETE /groups/{groupId}/admins/{userId} | group_id(必填), user_id(必填) |
-| Groups | `zoom_list_group_channels` | List group channels | GET /groups/{groupId}/channels | group_id(必填) |
-| Groups | `zoom_get_locked_settings` | Get locked settings | GET /groups/{groupId}/lock_settings | group_id(必填), option(可选) |
-| Groups | `zoom_update_locked_settings` | Update locked settings | PATCH /groups/{groupId}/lock_settings | group_id(必填), option(可选) |
-| Groups | `zoom_list_group_members` | List group members | GET /groups/{groupId}/members | group_id(必填), page_size(可选), page_number(可选), next_page_token(可选) |
-| Groups | `zoom_add_group_members` | Add group members | POST /groups/{groupId}/members | group_id(必填), members(可选) |
-| Groups | `zoom_delete_a_group_member` | Delete a group member | DELETE /groups/{groupId}/members/{memberId} | group_id(必填), member_id(必填) |
-| Groups | `zoom_update_a_group_member` | Update a group member | PATCH /groups/{groupId}/members/{memberId} | group_id(必填), member_id(必填), action(必填), target_group_id(可选) |
-| Groups | `zoom_get_a_group_s_settings` | Get a group's settings | GET /groups/{groupId}/settings | group_id(必填), option(可选), custom_query_fields(可选) |
-| Groups | `zoom_update_a_group_s_settings` | Update a group's settings | PATCH /groups/{groupId}/settings | group_id(必填), option(可选) |
-| Groups | `zoom_get_a_group_s_webinar_registration_settings` | Get a group's webinar registration settings | GET /groups/{groupId}/settings/registration | group_id(必填), type(可选) |
-| Groups | `zoom_update_a_group_s_webinar_registration_settings` | Update a group's webinar registration settings | PATCH /groups/{groupId}/settings/registration | group_id(必填), type(可选), options(可选), questions(可选), approve_type(可选), custom_questions(可选) |
-| Groups | `zoom_group_upload_virtual_background_files` | Upload Virtual Background files | POST /groups/{groupId}/settings/virtual_backgrounds | group_id(必填), file_content_base64(必填), filename(必填) |
-| Groups | `zoom_group_delete_virtual_background_files` | Delete Virtual Background files | DELETE /groups/{groupId}/settings/virtual_backgrounds | group_id(必填), file_ids(可选) |
-| Users | `zoom_list_users` | List users | GET /users | status(可选), page_size(可选), role_id(可选), page_number(可选), include_fields(可选), next_page_token(可选), license(可选) |
-| Users | `zoom_create_users` | Create users | POST /users | action(必填), user_info(可选) |
-| Users | `zoom_check_a_user_email` | Check a user email | GET /users/email | email(必填) |
-| Users | `zoom_bulk_update_features_for_users` | Bulk update features for users | POST /users/features | feature_type(必填), feature_value(必填), users(必填), subscription_id(可选), license_info_list(可选) |
-| Users | `zoom_get_the_user_s_zak` | Get the user's ZAK | GET /users/me/zak | 无 |
-| Users | `zoom_get_user_summary` | Get user summary | GET /users/summary | 无 |
-| Users | `zoom_check_a_user_s_pm_room` | Check a user's PM room | GET /users/vanity_name | vanity_name(必填) |
-| Users | `zoom_get_a_user` | Get a user | GET /users/{userId} | user_id(必填), login_type(可选), encrypted_email(可选), search_by_unique_id(可选) |
-| Users | `zoom_delete_a_user` | Delete a user | DELETE /users/{userId} | user_id(必填), encrypted_email(可选), action(可选), transfer_email(可选), transfer_meeting(可选), transfer_webinar(可选), transfer_recording(可选), transfer_whiteboard(可选), transfer_clipfiles(可选), transfer_notes(可选), transfer_visitors(可选), transfer_docs(可选), transfer_events(可选) |
-| Users | `zoom_update_a_user` | Update a user | PATCH /users/{userId} | user_id(必填), login_type(可选), remove_tsp_credentials(可选), cms_user_id(可选), company(可选), custom_attributes(可选), dept(可选), first_name(可选), group_id(可选), division_ids(可选), host_key(可选), job_title(可选), cost_center(可选), language(可选), last_name(可选), location(可选), manager(可选), phone_country(可选), phone_number(可选), phone_numbers(可选), pmi(可选), pronouns(可选), pronouns_option(可选), timezone(可选), type(可选), use_pmi(可选), vanity_name(可选), display_name(可选), zoom_one_type(可选), plan_united_type(可选), feature(可选), about_me(可选), linkedin_url(可选), license_info_list(可选) |
-| Users | `zoom_list_user_assistants` | List user assistants | GET /users/{userId}/assistants | user_id(必填) |
-| Users | `zoom_add_assistants` | Add assistants | POST /users/{userId}/assistants | user_id(必填), assistants(可选) |
-| Users | `zoom_delete_user_assistants` | Delete user assistants | DELETE /users/{userId}/assistants | user_id(必填) |
-| Users | `zoom_delete_a_user_assistant` | Delete a user assistant | DELETE /users/{userId}/assistants/{assistantId} | user_id(必填), assistant_id(必填) |
-| Users | `zoom_list_a_user_s_collaboration_devices` | List a user's collaboration devices | GET /users/{userId}/collaboration_devices | user_id(必填) |
-| Users | `zoom_get_collaboration_device_detail` | Get collaboration device detail | GET /users/{userId}/collaboration_devices/{collaborationDeviceId} | user_id(必填), collaboration_device_id(必填) |
-| Users | `zoom_update_a_user_s_email` | Update a user's email | PUT /users/{userId}/email | user_id(必填), email(必填) |
-| Users | `zoom_get_meeting_summary_templates` | Get meeting summary templates | GET /users/{userId}/meeting_summary_templates | user_id(必填) |
-| Users | `zoom_get_meeting_template_detail` | Get meeting template detail | GET /users/{userId}/meeting_templates/{meetingTemplateId} | user_id(必填), meeting_template_id(必填) |
-| Users | `zoom_update_a_user_s_password` | Update a user's password | PUT /users/{userId}/password | user_id(必填), password(必填) |
-| Users | `zoom_get_user_permissions` | Get user permissions | GET /users/{userId}/permissions | user_id(必填) |
-| Users | `zoom_upload_a_user_s_profile_picture` | Upload a user's profile picture | POST /users/{userId}/picture | user_id(必填), file_content_base64(必填), filename(必填) |
-| Users | `zoom_delete_a_user_s_profile_picture` | Delete a user's profile picture | DELETE /users/{userId}/picture | user_id(必填) |
-| Users | `zoom_get_a_user_presence_status` | Get a user presence status | GET /users/{userId}/presence_status | user_id(必填) |
-| Users | `zoom_update_a_user_s_presence_status` | Update a user's presence status | PUT /users/{userId}/presence_status | user_id(必填) |
-| Users | `zoom_list_user_schedulers` | List user schedulers | GET /users/{userId}/schedulers | user_id(必填) |
-| Users | `zoom_delete_user_schedulers` | Delete user schedulers | DELETE /users/{userId}/schedulers | user_id(必填) |
-| Users | `zoom_delete_a_scheduler` | Delete a scheduler | DELETE /users/{userId}/schedulers/{schedulerId} | user_id(必填), scheduler_id(必填) |
-| Users | `zoom_get_user_settings` | Get user settings | GET /users/{userId}/settings | user_id(必填), login_type(可选), option(可选), custom_query_fields(可选) |
-| Users | `zoom_update_user_settings` | Update user settings | PATCH /users/{userId}/settings | user_id(必填), option(可选) |
-| Users | `zoom_user_upload_virtual_background_files` | Upload Virtual Background files | POST /users/{userId}/settings/virtual_backgrounds | user_id(必填), file_content_base64(必填), filename(必填) |
-| Users | `zoom_user_delete_virtual_background_files` | Delete Virtual Background files | DELETE /users/{userId}/settings/virtual_backgrounds | user_id(必填), file_ids(可选) |
-| Users | `zoom_update_user_status` | Update user status | PUT /users/{userId}/status | user_id(必填), action(必填), transfer_events(可选), transfer_email(可选) |
-| Users | `zoom_get_a_user_s_token` | Get a user's token | GET /users/{userId}/token | user_id(必填), type(可选), ttl(可选), meeting_id(可选) |
-| Users | `zoom_revoke_a_user_s_sso_token` | Revoke a user's SSO token | DELETE /users/{userId}/token | user_id(必填) |
-
-Responses are the vendor's raw JSON, pretty-printed, returned as-is.
+| contact_groups | `zoom_add_contact_group_members` | Add contact group members | POST /contacts/groups/{groupId}/members | group_id(required), group_members(optional) |
+| contact_groups | `zoom_create_a_contact_group` | Create a contact group | POST /contacts/groups | group_name(optional), group_privacy(optional), description(optional), group_members(optional) |
+| contact_groups | `zoom_get_a_contact_group` | Get a contact group | GET /contacts/groups/{groupId} | group_id(required) |
+| contact_groups | `zoom_list_contact_groups` | List contact groups | GET /contacts/groups | page_size(required), next_page_token(optional) |
+| divisions | `zoom_get_a_division` | Get a division | GET /divisions/{divisionId} | division_id(required) |
+| divisions | `zoom_list_divisions` | List divisions | GET /divisions | next_page_token(optional), page_size(required) |
+| groups | `zoom_add_group_members` | Add group members | POST /groups/{groupId}/members | group_id(required), members(optional) |
+| groups | `zoom_create_a_group` | Create a group | POST /groups | name(optional) |
+| groups | `zoom_delete_a_group` | Delete a group | DELETE /groups/{groupId} | group_id(required) |
+| groups | `zoom_delete_a_group_member` | Delete a group member | DELETE /groups/{groupId}/members/{memberId} | group_id(required), member_id(required) |
+| groups | `zoom_get_a_group` | Get a group | GET /groups/{groupId} | group_id(required) |
+| groups | `zoom_list_group_members` | List group members | GET /groups/{groupId}/members | group_id(required), page_size(required), page_number(required), next_page_token(optional) |
+| groups | `zoom_list_groups` | List groups | GET /groups | page_size(optional), next_page_token(optional) |
+| groups | `zoom_update_a_group` | Update a group | PATCH /groups/{groupId} | group_id(required), name(optional) |
+| users | `zoom_check_a_user_email` | Check a user email | GET /users/email | email(required) |
+| users | `zoom_create_users` | Create users | POST /users | action(required), user_info(optional) |
+| users | `zoom_delete_a_user` | Delete a user | DELETE /users/{userId} | user_id(required), encrypted_email(required), action(required), transfer_email(optional), transfer_meeting(optional), transfer_webinar(optional), transfer_recording(optional), transfer_whiteboard(optional), transfer_clipfiles(optional), transfer_notes(optional), transfer_visitors(optional), transfer_docs(optional), transfer_events(required) |
+| users | `zoom_get_a_user` | Get a user | GET /users/{userId} | user_id(required), login_type(optional), encrypted_email(required), search_by_unique_id(optional) |
+| users | `zoom_get_user_permissions` | Get user permissions | GET /users/{userId}/permissions | user_id(required) |
+| users | `zoom_list_users` | List users | GET /users | status(required), page_size(required), role_id(optional), page_number(optional), include_fields(optional), next_page_token(optional), license(optional) |
+| users | `zoom_update_a_user` | Update a user | PATCH /users/{userId} | user_id(required), login_type(optional), remove_tsp_credentials(optional), cms_user_id(optional), company(optional), custom_attributes(optional), dept(optional), first_name(optional), group_id(optional), division_ids(optional), host_key(optional), job_title(optional), cost_center(optional), language(optional), last_name(optional), location(optional), manager(optional), phone_country(optional), phone_number(optional), phone_numbers(optional), pmi(optional), pronouns(optional), pronouns_option(optional), timezone(optional), type(optional), use_pmi(required), vanity_name(optional), display_name(optional), zoom_one_type(optional), plan_united_type(optional), feature(optional), about_me(optional), linkedin_url(optional), license_info_list(optional) |
+| users | `zoom_update_user_status` | Update user status | PUT /users/{userId}/status | user_id(required), action(required), transfer_events(optional), transfer_email(optional) |
 
 ## 测试示例
 
@@ -239,6 +224,16 @@ correct per Zoom's own documentation.
 
 ## Known Gaps
 
+- **Trimmed from 71 to 22 tools on 2026-08-04.** The original build
+  covered the full Users Admin API surface per an earlier scope decision
+  (justified at the time by there being no MSPbots-existing integration to
+  anchor a narrower scope against). A later scope decision cut this back
+  to the original PRD-14714 task's actual stated capabilities (account
+  creation, group-driven provisioning, validation) plus minimal supporting
+  CRUD — see the Scope section above for the exact mapping and the ~49
+  removed operations. If a removed operation is needed later, the vendor's
+  OpenAPI spec (linked below) still documents it and it can be re-added
+  the same way the kept tools were generated.
 - **No test S2S OAuth app credentials available yet** — this build has
   not been end-to-end verified against a real Zoom account. Structural
   verification (handshake/tools-list/401 gating/real-OAuth-endpoint
@@ -248,8 +243,8 @@ correct per Zoom's own documentation.
 - **MSPbots has no existing "Zoom" integration configured** (confirmed
   via `web/int/sys/integration/list` — no `ZOOM`/`zoom` entry exists),
   so there was no prior MSPbots interface/param shape to align this
-  server's scope against; coverage instead matches Zoom's own published
-  API surface exactly (71 of 71 operations in the Users API spec).
+  server's scope against; see Scope above for how the trim target was
+  determined instead.
 - **Nested object/array-of-object body fields are passed through as a
   raw `dict`/`list[dict]`** rather than flattened into individual named
   arguments (e.g. `zoom_create_users`' `user_info`, `zoom_add_group_members`'
