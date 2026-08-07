@@ -69,25 +69,6 @@ Args:
             return f"Error: {e}"
 
     @mcp.tool()
-    async def zoom_delete_a_group(group_id: str) -> str:
-        """Delete a group
-
-API: DELETE /groups/{groupId}
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-        """
-        client = client_factory()
-        if client is None:
-            return NO_TOKEN
-        try:
-            result = await client.delete_a_group(group_id=group_id)
-            return json.dumps(result, indent=2)
-        except ZoomError as e:
-            return f"Error: {e}"
-
-    @mcp.tool()
     async def zoom_update_a_group(group_id: str, name: str | None = None) -> str:
         """Update a group
 

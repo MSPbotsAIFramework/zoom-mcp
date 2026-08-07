@@ -1,11 +1,25 @@
 # zoom-mcp
 
 MCP server for **Zoom**'s Users Admin REST API. Wraps the official
-`https://developers.zoom.us/docs/api/users/` spec — Users, Groups, Contact
-Groups, and Divisions — driven by PRD-14714's "Account creation /
-validation" requirement (onboarding step: account creation and
-group-driven provisioning, plus validation). **22 tools**, trimmed down
-from an original 71-tool full-API build (2026-08-04) — see Scope below.
+`https://developers.zoom.us/docs/api/users/` spec — Users and Groups —
+driven by PRD-14714's "Account creation / validation" requirement
+(onboarding step: account creation and group-driven provisioning, plus
+validation). **15 tools**, trimmed down from an original 71-tool
+full-API build (2026-08-04), then trimmed again from 22 to 15
+(2026-08-07) — see Scope below.
+
+## Tool Scope
+
+Trimmed from **22 tools to 15 tools** (2026-08-07). The kept surface is
+focused on core user-lifecycle management (create / get / list / update /
+delete / status / permissions) plus group membership management —
+together the two building blocks needed for typical onboarding and
+offboarding automation. Contact-group and division management (6 tools
+across `contact_groups.py` and `divisions.py`) were dropped as lower-value
+niche capabilities for that use case, along with `zoom_delete_a_group`
+(group deletion is a rare, high-risk admin action outside the normal
+onboarding/offboarding flow). See the Scope section below for the full
+before/after mapping.
 
 > Naming note: Zoom also publishes its own first-party MCP servers
 > (`developers.zoom.us/docs/mcp`) — Zoom, Whiteboard, Chat, Docs, Tasks,
@@ -36,36 +50,33 @@ from an original 71-tool full-API build (2026-08-04) — see Scope below.
 
 ## Scope
 
-**22 tools**, trimmed down from an original 71-tool full-API build
-(2026-08-04). MSPbots has no existing "Zoom" integration configured
-(confirmed via `web/int/sys/integration/list`), so — matching the approach
-used for `duo-mcp` elsewhere in this program — "actual usage" was taken
-from the original PRD-14714 task's own stated requirement instead:
-**account creation and group-driven provisioning, plus validation**. That
-maps to:
+**15 tools**, trimmed down from an original 71-tool full-API build
+(2026-08-04), by way of an intermediate 22-tool build. MSPbots has no
+existing "Zoom" integration configured (confirmed via
+`web/int/sys/integration/list`), so — matching the approach used for
+`duo-mcp` elsewhere in this program — "actual usage" was taken from the
+original PRD-14714 task's own stated requirement instead: **account
+creation and group-driven provisioning, plus validation**. That maps to:
 
 - **`users` (8 of 35 original)**: `zoom_create_users`,
   `zoom_check_a_user_email` (email-availability validation),
   `zoom_get_a_user`, `zoom_list_users`, `zoom_update_a_user`,
   `zoom_delete_a_user`, `zoom_update_user_status` (activate/deactivate —
   part of provisioning/validation), `zoom_get_user_permissions`
-- **`groups` (8 of 21 original)**: `zoom_list_groups`,
+- **`groups` (7 of 21 original)**: `zoom_list_groups`,
   `zoom_create_a_group`, `zoom_get_a_group`, `zoom_update_a_group`,
-  `zoom_delete_a_group`, plus membership management (the "group-driven"
-  half of provisioning) — `zoom_list_group_members`,
-  `zoom_add_group_members`, `zoom_delete_a_group_member`
-- **`contact_groups` (4 of 8 original)**: `zoom_list_contact_groups`,
-  `zoom_create_a_contact_group`, `zoom_get_a_contact_group`,
-  `zoom_add_contact_group_members`
-- **`divisions` (2 of 7 original)**: `zoom_list_divisions`,
-  `zoom_get_a_division`
+  plus membership management (the "group-driven" half of provisioning) —
+  `zoom_list_group_members`, `zoom_add_group_members`,
+  `zoom_delete_a_group_member`
 
 Everything else (assistants, collaboration devices, meeting summary
 templates, password/profile-picture/presence/scheduler/settings/virtual-
 background management on `users`; admins/channels/locked-settings/webinar-
-registration/virtual-background on `groups`; remove-members/full CRUD
-depth on `contact_groups` and `divisions` — ~49 tools) was removed as
-unrelated to account creation/provisioning/validation. If a removed
+registration/virtual-background/`zoom_delete_a_group` on `groups`; all of
+`contact_groups` and `divisions` — ~56 tools) was removed as unrelated to
+account creation/provisioning/validation, or (in the case of
+`zoom_delete_a_group`, contact groups, and divisions) as lower-value/niche
+for typical onboarding-offboarding automation use cases. If a removed
 operation is needed later, the vendor's OpenAPI spec (linked above) still
 documents it and it can be re-added the same way the kept tools were
 generated.
@@ -117,9 +128,7 @@ Error: Zoom API error: HTTP 400 during login: {"reason":"Invalid client_id or cl
 Required scopes on the S2S OAuth app (set on the app's **Scopes** page
 in the Zoom App Marketplace) — grant the full set to use every tool
 below: `user:read:admin`, `user:write:admin`, `group:read:admin`,
-`group:write:admin`, `contact_group:read:admin`,
-`contact_group:write:admin`. (Divisions endpoints ride on the
-`user:*:admin` scopes; Zoom does not define separate division scopes.)
+`group:write:admin`.
 
 ## Environment Variables
 
@@ -147,15 +156,8 @@ below for the exact sub-field names of each.
 
 | Category | Tool | Description | Method + Path | Params |
 |---|---|---|---|---|
-| contact_groups | `zoom_add_contact_group_members` | Add contact group members | POST /contacts/groups/{groupId}/members | group_id(required), group_members(optional) |
-| contact_groups | `zoom_create_a_contact_group` | Create a contact group | POST /contacts/groups | group_name(optional), group_privacy(optional), description(optional), group_members(optional) |
-| contact_groups | `zoom_get_a_contact_group` | Get a contact group | GET /contacts/groups/{groupId} | group_id(required) |
-| contact_groups | `zoom_list_contact_groups` | List contact groups | GET /contacts/groups | page_size(required), next_page_token(optional) |
-| divisions | `zoom_get_a_division` | Get a division | GET /divisions/{divisionId} | division_id(required) |
-| divisions | `zoom_list_divisions` | List divisions | GET /divisions | next_page_token(optional), page_size(required) |
 | groups | `zoom_add_group_members` | Add group members | POST /groups/{groupId}/members | group_id(required), members(optional) |
 | groups | `zoom_create_a_group` | Create a group | POST /groups | name(optional) |
-| groups | `zoom_delete_a_group` | Delete a group | DELETE /groups/{groupId} | group_id(required) |
 | groups | `zoom_delete_a_group_member` | Delete a group member | DELETE /groups/{groupId}/members/{memberId} | group_id(required), member_id(required) |
 | groups | `zoom_get_a_group` | Get a group | GET /groups/{groupId} | group_id(required) |
 | groups | `zoom_list_group_members` | List group members | GET /groups/{groupId}/members | group_id(required), page_size(required), page_number(required), next_page_token(optional) |
@@ -209,6 +211,10 @@ confirming the request construction (Basic-auth-encoded client
 credentials, `account_credentials` grant, `account_id` param) is
 correct per Zoom's own documentation.
 
+**Re-verified after the 22→15 trim** (2026-08-07): MCP handshake,
+`tools/list` (15 tools, 0 duplicate names), and `GET /health` confirmed
+working against a locally running instance.
+
 ## API Reference
 
 - Public, no login required: `https://developers.zoom.us/docs/api/users/`
@@ -224,16 +230,22 @@ correct per Zoom's own documentation.
 
 ## Known Gaps
 
-- **Trimmed from 71 to 22 tools on 2026-08-04.** The original build
-  covered the full Users Admin API surface per an earlier scope decision
-  (justified at the time by there being no MSPbots-existing integration to
-  anchor a narrower scope against). A later scope decision cut this back
-  to the original PRD-14714 task's actual stated capabilities (account
-  creation, group-driven provisioning, validation) plus minimal supporting
-  CRUD — see the Scope section above for the exact mapping and the ~49
-  removed operations. If a removed operation is needed later, the vendor's
-  OpenAPI spec (linked below) still documents it and it can be re-added
-  the same way the kept tools were generated.
+- **Trimmed from 71 to 22 tools on 2026-08-04, then from 22 to 15 tools
+  on 2026-08-07.** The original build covered the full Users Admin API
+  surface per an earlier scope decision (justified at the time by there
+  being no MSPbots-existing integration to anchor a narrower scope
+  against). A later scope decision cut this back to the original
+  PRD-14714 task's actual stated capabilities (account creation,
+  group-driven provisioning, validation) plus minimal supporting CRUD,
+  landing at 22 tools. The 2026-08-07 pass narrowed this further to core
+  user lifecycle (create/get/list/update/delete/status/permissions) and
+  group membership management, dropping contact-group management,
+  division management, and `zoom_delete_a_group` as lower-value/niche for
+  typical onboarding-offboarding automation use cases — see the Scope
+  section above for the exact mapping and the removed operations. If a
+  removed operation is needed later, the vendor's OpenAPI spec (linked
+  below) still documents it and it can be re-added the same way the kept
+  tools were generated.
 - **No test S2S OAuth app credentials available yet** — this build has
   not been end-to-end verified against a real Zoom account. Structural
   verification (handshake/tools-list/401 gating/real-OAuth-endpoint
