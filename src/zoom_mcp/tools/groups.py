@@ -1,156 +1,157 @@
-import json
 from collections.abc import Callable
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+from pydantic import Field
 
+from .._json import dump_json_capped
 from ..api_client import ZoomClient, ZoomError
 from ._common import NO_TOKEN
 
+# Zoom's own OpenAPI spec (developers.zoom.us/api-hub/users/methods/endpoints.json)
+# documents these per-endpoint page_size ceilings; they differ per endpoint so each
+# is clamped independently rather than sharing one constant.
+_GROUPS_MAX_PAGE_SIZE = 300
+_GROUP_MEMBERS_MAX_PAGE_SIZE = 2000
+
 
 def register(mcp: FastMCP, client_factory: Callable[[], ZoomClient | None]) -> None:
-    @mcp.tool()
-    async def zoom_list_groups(page_size: int | None = None, next_page_token: str | None = None) -> str:
-        """List groups
 
-API: GET /groups
-
-Args:
-    page_size: Optional. The number of records returned in a single API call. The
-        maximum is 300.
-    next_page_token: Optional. The next page token paginates through a set of large
-        results. A next page token is returned whenever the set of available results
-        exceeds the current page size. The expiration period for this token is 15
-        minutes.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def zoom_list_groups(
+        page_size: Annotated[
+            int | None, Field(description="Records per page (max 300).")
+        ] = None,
+        next_page_token: Annotated[
+            str | None,
+            Field(description="Token from a previous response to fetch the next page."),
+        ] = None,
+    ) -> str:
+        """List the account's user groups."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
+        if page_size is not None:
+            page_size = min(page_size, _GROUPS_MAX_PAGE_SIZE)
         try:
             result = await client.list_groups(page_size=page_size, next_page_token=next_page_token)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_create_a_group(name: str | None = None) -> str:
-        """Create a group
-
-API: POST /groups
-
-Args:
-    name: Optional. The group's name.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False))
+    async def zoom_create_a_group(
+        name: Annotated[str | None, Field(description="The new group's name.")] = None,
+    ) -> str:
+        """Create a new user group."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.create_a_group(name=name)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_get_a_group(group_id: str) -> str:
-        """Get a group
-
-API: GET /groups/{groupId}
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def zoom_get_a_group(
+        group_id: Annotated[str, Field(description="The group's ID, from zoom_list_groups.")],
+    ) -> str:
+        """Get a single group's details by ID."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.get_a_group(group_id=group_id)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_update_a_group(group_id: str, name: str | None = None) -> str:
-        """Update a group
-
-API: PATCH /groups/{groupId}
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-    name: Optional. Group name. It must be unique to one account and less than 128
-        characters.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, idempotentHint=True))
+    async def zoom_update_a_group(
+        group_id: Annotated[str, Field(description="The group's ID, from zoom_list_groups.")],
+        name: Annotated[
+            str | None,
+            Field(description="New group name. Must be unique on the account, under 128 chars."),
+        ] = None,
+    ) -> str:
+        """Rename an existing group."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.update_a_group(group_id=group_id, name=name)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_list_group_members(group_id: str, page_size: int = 30, page_number: int = 1, next_page_token: str | None = None) -> str:
-        """List group members
-
-API: GET /groups/{groupId}/members
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-    page_size: Optional. The number of records returned within a single API call.
-    page_number: Optional. **Deprecated.** We will no longer support this field in a
-        future release. Instead, use the `next_page_token` for pagination.
-    next_page_token: Optional. Use the next page token to paginate through large result
-        sets. A next page token is returned whenever the set of available results
-        exceeds the current page size. This token's expiration period is 15 minutes.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    async def zoom_list_group_members(
+        group_id: Annotated[str, Field(description="The group's ID, from zoom_list_groups.")],
+        page_size: Annotated[
+            int | None, Field(description="Records per page (max 2000, default 30).")
+        ] = 30,
+        page_number: Annotated[
+            int | None,
+            Field(description="Deprecated by Zoom; prefer next_page_token instead."),
+        ] = None,
+        next_page_token: Annotated[
+            str | None,
+            Field(description="Token from a previous response to fetch the next page."),
+        ] = None,
+    ) -> str:
+        """List the members of a group."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
+        if page_size is not None:
+            page_size = min(page_size, _GROUP_MEMBERS_MAX_PAGE_SIZE)
         try:
-            result = await client.list_group_members(group_id=group_id, page_size=page_size, page_number=page_number, next_page_token=next_page_token)
-            return json.dumps(result, indent=2)
+            result = await client.list_group_members(
+                group_id=group_id,
+                page_size=page_size,
+                page_number=page_number,
+                next_page_token=next_page_token,
+            )
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_add_group_members(group_id: str, members: list[dict] | None = None) -> str:
-        """Add group members
-
-API: POST /groups/{groupId}/members
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-    members: Optional. List of Group members
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False))
+    async def zoom_add_group_members(
+        group_id: Annotated[str, Field(description="The group's ID, from zoom_list_groups.")],
+        members: Annotated[
+            list[dict] | None,
+            Field(
+                description=(
+                    "Members to add, each an object with an 'id' or 'email' field "
+                    "identifying an existing user."
+                )
+            ),
+        ] = None,
+    ) -> str:
+        """Add one or more existing users to a group."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.add_group_members(group_id=group_id, members=members)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
+            return e.to_envelope()
 
-    @mcp.tool()
-    async def zoom_delete_a_group_member(group_id: str, member_id: str) -> str:
-        """Delete a group member
-
-API: DELETE /groups/{groupId}/members/{memberId}
-
-Args:
-    group_id: Required. The group ID. Retrieve by calling the [**List
-        groups**](/docs/api-reference/zoom-api/methods#operation/groups) API.
-    member_id: Required. The member ID or email address.
-        """
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
+    async def zoom_delete_a_group_member(
+        group_id: Annotated[str, Field(description="The group's ID, from zoom_list_groups.")],
+        member_id: Annotated[str, Field(description="The member's user ID or email address.")],
+    ) -> str:
+        """Remove a member from a group. Irreversible; does not delete the user account."""
         client = client_factory()
         if client is None:
             return NO_TOKEN
         try:
             result = await client.delete_a_group_member(group_id=group_id, member_id=member_id)
-            return json.dumps(result, indent=2)
+            return dump_json_capped(result)
         except ZoomError as e:
-            return f"Error: {e}"
-
+            return e.to_envelope()

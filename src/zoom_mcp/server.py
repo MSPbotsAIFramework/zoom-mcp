@@ -89,13 +89,31 @@ def create_mcp_server(settings: Settings) -> FastMCP:
     # correctly behind a reverse proxy or docker network.
     mcp = FastMCP(
         name="zoom-mcp",
+        instructions=(
+            "Zoom account administration: manage the users and groups on a Zoom "
+            "account via its Users Admin API (not meeting/chat/whiteboard content — "
+            "see Zoom's own first-party MCP servers for that). Two tool domains: "
+            "users (zoom_list_users, zoom_create_users, zoom_get_a_user, "
+            "zoom_check_a_user_email, zoom_update_a_user, zoom_update_user_status, "
+            "zoom_delete_a_user, zoom_get_user_permissions) and groups "
+            "(zoom_list_groups, zoom_create_a_group, zoom_get_a_group, "
+            "zoom_update_a_group, zoom_list_group_members, zoom_add_group_members, "
+            "zoom_delete_a_group_member). Groups are how account-wide policies/"
+            "provisioning are applied to sets of users. Typical onboarding flow: "
+            "zoom_check_a_user_email to confirm availability, zoom_create_users to "
+            "create the account, then zoom_add_group_members to place them in the "
+            "right group. Typical offboarding flow: zoom_update_user_status(action="
+            "'deactivate') or zoom_delete_a_user, optionally transferring assets to "
+            "another user first."
+        ),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     )
 
     client_factory: Callable[[], ZoomClient | None] = lambda: get_client_from_context(settings)
 
-    from .tools import resources
+    from .tools import groups, users
 
-    resources.register(mcp, client_factory)
+    groups.register(mcp, client_factory)
+    users.register(mcp, client_factory)
 
     return mcp

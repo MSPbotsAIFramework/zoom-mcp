@@ -119,10 +119,10 @@ Missing any header returns `401`:
 }
 ```
 
-Invalid app credentials surface as a tool-level error from the token
-exchange itself, e.g.:
-```
-Error: Zoom API error: HTTP 400 during login: {"reason":"Invalid client_id or client_secret","error":"invalid_client"}
+Invalid app credentials surface as a structured tool-level error envelope
+from the token exchange itself, e.g.:
+```json
+{"error": {"code": "invalid_argument", "message": "Invalid client_id or client_secret", "retryable": false}}
 ```
 
 Required scopes on the S2S OAuth app (set on the app's **Scopes** page
@@ -142,7 +142,7 @@ below: `user:read:admin`, `user:write:admin`, `group:read:admin`,
 ## MCP Endpoint
 
 - `POST /mcp` — MCP protocol (streamable HTTP transport)
-- `GET /health` — health check, returns `{"status": "ok", "service": "zoom-mcp", "transport": "http"}`
+- `GET /health` — health check, returns `{"status": "ok"}` (pure local probe, does not call Zoom)
 
 ## Tool List
 
@@ -154,23 +154,35 @@ exists once for Groups and once for Users — is disambiguated with a
 vendor's own nested object shape as-is; see the API Reference link
 below for the exact sub-field names of each.
 
-| Category | Tool | Description | Method + Path | Params |
-|---|---|---|---|---|
-| groups | `zoom_add_group_members` | Add group members | POST /groups/{groupId}/members | group_id(required), members(optional) |
-| groups | `zoom_create_a_group` | Create a group | POST /groups | name(optional) |
-| groups | `zoom_delete_a_group_member` | Delete a group member | DELETE /groups/{groupId}/members/{memberId} | group_id(required), member_id(required) |
-| groups | `zoom_get_a_group` | Get a group | GET /groups/{groupId} | group_id(required) |
-| groups | `zoom_list_group_members` | List group members | GET /groups/{groupId}/members | group_id(required), page_size(required), page_number(required), next_page_token(optional) |
-| groups | `zoom_list_groups` | List groups | GET /groups | page_size(optional), next_page_token(optional) |
-| groups | `zoom_update_a_group` | Update a group | PATCH /groups/{groupId} | group_id(required), name(optional) |
-| users | `zoom_check_a_user_email` | Check a user email | GET /users/email | email(required) |
-| users | `zoom_create_users` | Create users | POST /users | action(required), user_info(optional) |
-| users | `zoom_delete_a_user` | Delete a user | DELETE /users/{userId} | user_id(required), encrypted_email(required), action(required), transfer_email(optional), transfer_meeting(optional), transfer_webinar(optional), transfer_recording(optional), transfer_whiteboard(optional), transfer_clipfiles(optional), transfer_notes(optional), transfer_visitors(optional), transfer_docs(optional), transfer_events(required) |
-| users | `zoom_get_a_user` | Get a user | GET /users/{userId} | user_id(required), login_type(optional), encrypted_email(required), search_by_unique_id(optional) |
-| users | `zoom_get_user_permissions` | Get user permissions | GET /users/{userId}/permissions | user_id(required) |
-| users | `zoom_list_users` | List users | GET /users | status(required), page_size(required), role_id(optional), page_number(optional), include_fields(optional), next_page_token(optional), license(optional) |
-| users | `zoom_update_a_user` | Update a user | PATCH /users/{userId} | user_id(required), login_type(optional), remove_tsp_credentials(optional), cms_user_id(optional), company(optional), custom_attributes(optional), dept(optional), first_name(optional), group_id(optional), division_ids(optional), host_key(optional), job_title(optional), cost_center(optional), language(optional), last_name(optional), location(optional), manager(optional), phone_country(optional), phone_number(optional), phone_numbers(optional), pmi(optional), pronouns(optional), pronouns_option(optional), timezone(optional), type(optional), use_pmi(required), vanity_name(optional), display_name(optional), zoom_one_type(optional), plan_united_type(optional), feature(optional), about_me(optional), linkedin_url(optional), license_info_list(optional) |
-| users | `zoom_update_user_status` | Update user status | PUT /users/{userId}/status | user_id(required), action(required), transfer_events(optional), transfer_email(optional) |
+| Category | Tool | Description | Method + Path | Params | Annotations |
+|---|---|---|---|---|---|
+| groups | `zoom_add_group_members` | Add group members | POST /groups/{groupId}/members | group_id(required), members(optional) | — |
+| groups | `zoom_create_a_group` | Create a group | POST /groups | name(optional) | — |
+| groups | `zoom_delete_a_group_member` | Delete a group member | DELETE /groups/{groupId}/members/{memberId} | group_id(required), member_id(required) | destructive, idempotent |
+| groups | `zoom_get_a_group` | Get a group | GET /groups/{groupId} | group_id(required) | readOnly |
+| groups | `zoom_list_group_members` | List group members | GET /groups/{groupId}/members | group_id(required), page_size(optional, max 2000), page_number(optional, deprecated), next_page_token(optional) | readOnly |
+| groups | `zoom_list_groups` | List groups | GET /groups | page_size(optional, max 300), next_page_token(optional) | readOnly |
+| groups | `zoom_update_a_group` | Update a group | PATCH /groups/{groupId} | group_id(required), name(optional) | idempotent |
+| users | `zoom_check_a_user_email` | Check a user email | GET /users/email | email(required) | readOnly |
+| users | `zoom_create_users` | Create users | POST /users | action(required), user_info(optional) | — |
+| users | `zoom_delete_a_user` | Delete a user | DELETE /users/{userId} | user_id(required), encrypted_email(optional), action(optional), transfer_email(optional), transfer_meeting(optional), transfer_webinar(optional), transfer_recording(optional), transfer_whiteboard(optional), transfer_clipfiles(optional), transfer_notes(optional), transfer_visitors(optional), transfer_docs(optional), transfer_events(optional) | destructive, idempotent |
+| users | `zoom_get_a_user` | Get a user | GET /users/{userId} | user_id(required), login_type(optional), encrypted_email(optional), search_by_unique_id(optional) | readOnly |
+| users | `zoom_get_user_permissions` | Get user permissions | GET /users/{userId}/permissions | user_id(required) | readOnly |
+| users | `zoom_list_users` | List users | GET /users | status(optional, default active), page_size(optional, max 2000), role_id(optional), page_number(optional, deprecated), include_fields(optional), next_page_token(optional), license(optional) | readOnly |
+| users | `zoom_update_a_user` | Update a user | PATCH /users/{userId} | user_id(required), plus ~30 optional profile/licensing fields (see tool schema) | idempotent |
+| users | `zoom_update_user_status` | Update user status | PUT /users/{userId}/status | user_id(required), action(required), transfer_events(optional), transfer_email(optional) | idempotent |
+
+`page_size` maximums above are Zoom's own documented per-endpoint ceilings
+(from `https://developers.zoom.us/api-hub/users/methods/endpoints.json`),
+clamped server-side rather than left unbounded — they differ per endpoint
+(300 for `/groups`, 2000 for `/users` and `/groups/{groupId}/members`), so
+each tool clamps against its own real vendor maximum instead of a single
+shared constant.
+
+Errors are returned as a structured JSON envelope (not raised as
+exceptions), e.g. `{"error": {"code": "not_found", "message": "...",
+"retryable": false}}`. `code` is one of: `not_configured`, `unauthorized`,
+`not_found`, `invalid_argument`, `rate_limited`, `upstream_error`.
 
 ## 测试示例
 
@@ -273,12 +285,58 @@ working against a locally running instance.
   meaningless. Required/optional markings here follow Zoom's spec
   literally rather than inferring intent, per this fleet's established
   practice of not second-guessing a vendor's documented contract.
-- **3 file-upload endpoints** (`zoom_group_upload_virtual_background_files`,
-  `zoom_user_upload_virtual_background_files`,
-  `zoom_upload_a_user_s_profile_picture`) take `file_content_base64` +
-  `filename` instead of a local file path, since this is a stateless
-  HTTP service with no access to the caller's filesystem.
 - **`zoom_create_users`' `action="custCreate"`** requires a separate
   Zoom ISV sales agreement per Zoom's own docs — this server does not
   validate that prerequisite, Zoom's API will reject the call if it's
   not met.
+
+## Vendor MCP SOP (0818) Compliance Pass — 2026-08-19
+
+Refactored to the stricter `vendor-mcp-development-sop-0818.md`:
+
+- Errors are now a structured JSON envelope (`{"error": {"code", "message",
+  "retryable"}}`) instead of ad-hoc `f"Error: {e}"` strings — `code` is one
+  of the SOP's fixed vocabulary, mapped from the Zoom API's HTTP status.
+- Responses are serialized with `dump_json_capped()` (compact, `ensure_ascii=False`,
+  auto-truncates the largest list field past 20,000 chars) instead of
+  `json.dumps(..., indent=2)`.
+- Tools are annotated with `readOnlyHint` / `destructiveHint` / `idempotentHint`
+  (`mcp.types.ToolAnnotations`) per their actual read/write/reversibility
+  semantics.
+- Docstrings were rewritten to a short summary only; all per-parameter
+  documentation (including the previously-embedded `API: GET /xxx` lines)
+  moved into `Annotated[T, Field(description=...)]` on each parameter, and a
+  service-level `instructions` string was added to `FastMCP(...)`.
+- `page_size` is now clamped server-side against Zoom's own documented
+  per-endpoint maximum (300 for `/groups`, 2000 for `/users` and
+  `/groups/{groupId}/members` — confirmed against Zoom's published OpenAPI
+  spec, not assumed from the SOP's generic ≤200 fallback) rather than left
+  unbounded.
+- `GET /health` now returns exactly `{"status": "ok"}` (previously included
+  extra `service`/`transport` fields not called for by the contract).
+- `api_client.py` was rewritten around a shared module-level `httpx.AsyncClient`
+  with SOP-compliant timeouts (`connect=5.0, read=30.0, write=10.0, pool=5.0`)
+  and bounded retry/backoff on `429`/`5xx` (respecting `Retry-After`, capped at
+  20s, max 3 retries) — previously each call opened its own short-lived
+  client with a single flat 30s/60s timeout and no retry logic. In the
+  process, ~50 methods for endpoints no tool ever called (divisions, contact
+  groups, and various group/user sub-resources such as virtual-background
+  upload, presence status, schedulers, and the profile-picture upload) were
+  removed as dead code — they were left over from the original 71-tool
+  generation pass and had no caller after the 71→22→15 trims described above.
+- `tools/resources.py`, a same-purpose duplicate of the tool-registration
+  wiring that only re-exported `groups`/`users`, was removed; `server.py` now
+  registers both tool modules directly.
+- Checked for the "tool registered under an always-false condition" dead-code
+  pattern seen in an earlier repo (cisco-umbrella-mcp) — not present here;
+  registration in `server.py` is unconditional.
+- Confirmed no environment-variable credential fallback exists anywhere in
+  this codebase (`config.py` holds no credential fields; the gateway
+  middleware 401s outright if any of the three required headers is missing) —
+  this was already compliant with SOP §3.1 before this pass, no change
+  needed.
+- Added `tests/test_tools.py` (tools/list snapshot incl. annotations and
+  description-length assertions, plus error-code-mapping tests) and
+  `tests/test_middleware.py` (401-on-missing/partial-header tests plus a
+  contextvar-isolation test), per SOP §10's minimal test set. Added
+  `pytest`/`pytest-asyncio` as dev dependencies.
