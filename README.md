@@ -173,13 +173,13 @@ services in this fleet (webroot-mcp, tsheets-mcp, oitvoip-mcp,
 covedataprotection-mcp) whose upstream tokens are similarly short-lived
 or non-refreshable.
 
-### HEADER 授权参数说明
+### HEADER Authorization Parameters
 
-| Header | 类型 | 是否必填 | 默认值 | 枚举值 | 字段描述 | Example |
+| Header | Type | Required | Default | Allowed values | Description | Example |
 |---|---|---|---|---|---|---|
-| `X-Zoom-Account-Id` | string | 是 | 无 | 无 | Zoom Server-to-Server OAuth app 的 Account ID（Zoom App Marketplace -> Manage -> 该 app -> Basic Information -> App Credentials） | `Ab1CdEfGhIJkLmNoPq2rS` |
-| `X-Zoom-Client-Id` | string | 是 | 无 | 无 | 同一个 S2S OAuth app 的 Client ID | `a1B2c3D4e5F6g7H8i9J0` |
-| `X-Zoom-Client-Secret` | string | 是 | 无 | 无 | 同一个 S2S OAuth app 的 Client Secret | `k1L2m3N4o5P6q7R8s9T0u1V2` |
+| `X-Zoom-Account-Id` | string | Yes | None | None | Account ID of the Zoom Server-to-Server OAuth app (Zoom App Marketplace -> Manage -> the app -> Basic Information -> App Credentials) | `Ab1CdEfGhIJkLmNoPq2rS` |
+| `X-Zoom-Client-Id` | string | Yes | None | None | Client ID of the same S2S OAuth app | `a1B2c3D4e5F6g7H8i9J0` |
+| `X-Zoom-Client-Secret` | string | Yes | None | None | Client Secret of the same S2S OAuth app | `k1L2m3N4o5P6q7R8s9T0u1V2` |
 
 Missing any header returns `401`:
 ```json
@@ -204,12 +204,12 @@ below: `user:read:admin`, `user:write:admin`, `group:read:admin`,
 
 ## Environment Variables
 
-| Variable | 类型 | 是否必填 | 默认值 | 说明 |
+| Variable | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `MCP_HTTP_PORT` | int | 否 | `8080` | HTTP 监听端口 |
-| `MCP_HTTP_HOST` | string | 否 | `0.0.0.0` | HTTP 监听地址 |
-| `ZOOM_OAUTH_URL` | string | 否 | `https://zoom.us/oauth/token` | Zoom OAuth token 端点 |
-| `ZOOM_API_BASE_URL` | string | 否 | `https://api.zoom.us/v2` | Zoom REST API 基础 URL |
+| `MCP_HTTP_PORT` | int | No | `8080` | HTTP listen port |
+| `MCP_HTTP_HOST` | string | No | `0.0.0.0` | HTTP listen address |
+| `ZOOM_OAUTH_URL` | string | No | `https://zoom.us/oauth/token` | Zoom OAuth token endpoint |
+| `ZOOM_API_BASE_URL` | string | No | `https://api.zoom.us/v2` | Zoom REST API base URL |
 
 ## MCP Endpoint
 
@@ -256,7 +256,7 @@ exceptions), e.g. `{"error": {"code": "not_found", "message": "...",
 "retryable": false}}`. `code` is one of: `not_configured`, `unauthorized`,
 `not_found`, `invalid_argument`, `rate_limited`, `upstream_error`.
 
-## 测试示例
+## Test Example
 
 ```bash
 # Health check
